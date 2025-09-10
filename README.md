@@ -1,14 +1,14 @@
-# Custom eslint rules in typescript monorepo
+## Philosophy
+TypeScript's flexibility is both a strength and a potential pitfall, allowing seamless integration of diverse paradigms such as typed or untyped code, functional or object-oriented approaches, and scripting or declarative styles. This versatility supports rapid prototyping and legacy JavaScript integration but often results in inconsistent codebases. Common challenges include gradual typing that encourages overuse of 'any' as an escape hatch, structural typing leading to subtle incompatibilities, and JavaScript quirks like implicit coercions or mutable prototypes that compromise type safety.
 
-An example of how to run eslint rules written in typescript within normal eslint check.
+These issues commonly appear in codebases that start strong but degrade into a mix of strictly typed and untyped modules, partial functional patterns clashing with OOP elements, and unforeseen runtime errors. Such problems are amplified in growing teams with varying expertise levels or external collaborations, where differing conventions lead to prolonged code reviews, style debates, and diverted focus from core architecture and features.
 
-There is an example of custom eslint rule in `packages` that is written in typescript.
-It enforces that all variables should have the same "bla" name :)
+This project tackles these challenges by establishing a stricter, opinionated TypeScript dialect through custom lint rules with LSP integration for immediate editor feedback. It automates decision-making, reduces debates over patterns, and prioritizes business logic. By enforcing these standards, best practices become accessible and default, fostering reliable, maintainable code in dynamic environments and enhancing overall development efficiency.
 
-Install dependencies and run eslint to see it in action.
-
-```
-yarn install
-
-yarn lint
-```# effect-less
+## Rules
+The prototype includes these initial rules, each aimed at promoting reliability, predictability, and ease of reasoning:
+- **Go-like returns:** Require functions to return a `[result, error]` tuple, akin to Go's error-handling model. This encourages explicit error propagation, eliminates exceptions as control flow, and simplifies debugging in complex call stacks.
+- **Validator-derived types:** Mandate that all types and interfaces originate from runtime validators like Zod schemas. This bridges the gap between static types and runtime behavior, ensuring type safety extends to data ingress and egress points, and minimizing discrepancies between compile-time and runtime errors.
+- **Automatic parameter validation:** Enforce that function parameters are defined via Zod schemas and automatically validated at entry (e.g., through decorators or wrappers). This shifts validation from manual boilerplate to declarative enforcement, reducing bugs from invalid inputs without cluttering business logic.
+- **Immutable data structures:** Require the use of const declarations where possible, ban mutations of objects and arrays, and enforce readonly syntax. This prevents side effects, enhances thread safety in concurrent environments, and makes state changes explicit and traceable.
+- **Pure functions only:** Enforce that functions have no side effects, with inputs solely via parameters and outputs via returns. This facilitates unit testing, memoization, and reasoning about code in isolation, avoiding global state pitfalls common in sprawling applications.

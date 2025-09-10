@@ -1,4 +1,10 @@
 {
   "name": "some-code-to-validate",
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "eslint --ext .ts,.tsx ."
+  },
+  "devDependencies": {
+    "eslint-plugin-example": "file:../eslint-plugin-example"
+  }
 }
