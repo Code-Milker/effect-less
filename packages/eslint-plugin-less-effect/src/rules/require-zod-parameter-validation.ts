@@ -5,21 +5,20 @@ const rule: Rule.RuleModule = {
     type: "problem",
     docs: {
       description:
-        "Enforce that function parameters are validated with Zod schema.parse in the parameter list.",
+        "Enforce that exported functions are defined using z.function().implement() or .implementAsync() for Zod validation.",
     },
     fixable: undefined,
     schema: [],
     messages: {
-      missingZodValidation:
-        "Parameter '{{name}}' must have a default value calling a Zod schema.parse(arguments[{{index}}]).",
-      invalidZodParse:
-        "Default value for parameter '{{name}}' must be a call to a Zod schema.parse(arguments[{{index}}]).",
-      notZodSchema: "The schema before .parse must originate from 'zod'.",
+      missingZodWrapper:
+        "Exported function '{{name}}' must be wrapped with z.function().implement() or .implementAsync().",
+      invalidZodWrapper:
+        "Invalid Zod wrapper for function '{{name}}'; must be z.function(...).implement(fn) or .implementAsync(async fn).",
+      notZodFunction: "The function call must originate from 'zod'.",
     },
   },
   create(context: Rule.RuleContext) {
     const zodLocals = new Set<string>();
-
     // Helper to check if the base identifier is from 'zod'
     function isFromZod(node: any): boolean {
       if (node.type === "Identifier") {
@@ -27,22 +26,49 @@ const rule: Rule.RuleModule = {
       }
       return false;
     }
-
-    // Recursively check if the object before .parse is Zod-related
-    function isZodSchemaExpression(node: any): boolean {
-      if (node.type === "Identifier") {
-        return isFromZod(node);
-      } else if (
-        node.type === "CallExpression" ||
-        node.type === "MemberExpression"
-      ) {
-        return isZodSchemaExpression(
-          node.callee ? node.callee.object : node.object,
-        );
+    // Helper to check if the chain starts with z.function()
+    function isZodFunctionChain(node: any): boolean {
+      let current = node;
+      while (current.type === "CallExpression") {
+        const callee = current.callee;
+        if (callee.type !== "MemberExpression") return false;
+        if (callee.property.type !== "Identifier") return false;
+        if (callee.property.name === "function" && isFromZod(callee.object)) {
+          return true;
+        }
+        current = callee.object;
       }
       return false;
     }
-
+    // Helper to check if the init is a valid z.function().implement(fn) or .implementAsync(async fn)
+    function isValidZodFunctionImplement(init: any): boolean {
+      if (init.type !== "CallExpression") return false;
+      const callee = init.callee;
+      if (callee.type !== "MemberExpression") return false;
+      if (
+        callee.property.type !== "Identifier" ||
+        (callee.property.name !== "implement" &&
+          callee.property.name !== "implementAsync")
+      ) {
+        return false;
+      }
+      // Check the chain for z.function()
+      if (!isZodFunctionChain(callee.object)) return false;
+      // Check argument is a function expression
+      if (init.arguments.length !== 1) return false;
+      const fnArg = init.arguments[0];
+      if (
+        fnArg.type !== "ArrowFunctionExpression" &&
+        fnArg.type !== "FunctionExpression"
+      ) {
+        return false;
+      }
+      // For implementAsync, ensure the fn is async
+      if (callee.property.name === "implementAsync" && !fnArg.async) {
+        return false;
+      }
+      return true;
+    }
     return {
       ImportDeclaration: (node: any) => {
         if (node.source.value === "zod") {
@@ -57,80 +83,35 @@ const rule: Rule.RuleModule = {
           });
         }
       },
-      "FunctionDeclaration, FunctionExpression, ArrowFunctionExpression": (
-        node: any,
-      ) => {
-        // Skip if this function is a Promise constructor callback
+      ExportNamedDeclaration: (node: any) => {
         if (
-          node.parent &&
-          node.parent.type === "NewExpression" &&
-          node.parent.callee &&
-          node.parent.callee.name === "Promise"
+          node.declaration &&
+          node.declaration.type === "VariableDeclaration"
         ) {
-          return;
+          const decl = node.declaration.declarations[0];
+          if (decl && decl.id.type === "Identifier" && decl.init) {
+            const funcName = decl.id.name;
+            if (!isValidZodFunctionImplement(decl.init)) {
+              context.report({
+                node: decl,
+                messageId: "missingZodWrapper",
+                data: { name: funcName },
+              });
+            }
+          }
+        } else if (
+          node.declaration &&
+          node.declaration.type === "FunctionDeclaration"
+        ) {
+          const funcName = node.declaration.id
+            ? node.declaration.id.name
+            : "anonymous";
+          context.report({
+            node: node.declaration,
+            messageId: "missingZodWrapper",
+            data: { name: funcName },
+          });
         }
-
-        if (node.params.length === 0) return;
-        node.params.forEach((param: any, index: number) => {
-          const isAssignment = param.type === "AssignmentPattern";
-          const actualParam = isAssignment ? param.left : param;
-          if (actualParam.type !== "Identifier") return; // Skip destructuring
-          const paramName = actualParam.name;
-          if (!isAssignment) {
-            context.report({
-              node: param,
-              messageId: "missingZodValidation",
-              data: { name: paramName, index: index.toString() },
-            });
-            return;
-          }
-          const defaultValue = param.right;
-          if (defaultValue.type !== "CallExpression") {
-            context.report({
-              node: defaultValue,
-              messageId: "invalidZodParse",
-              data: { name: paramName, index: index.toString() },
-            });
-            return;
-          }
-          const callee = defaultValue.callee;
-          if (
-            callee.type !== "MemberExpression" ||
-            callee.property.type !== "Identifier" ||
-            callee.property.name !== "parse"
-          ) {
-            context.report({
-              node: defaultValue,
-              messageId: "invalidZodParse",
-              data: { name: paramName, index: index.toString() },
-            });
-            return;
-          }
-          // Check if the schema expression is Zod-related
-          if (!isZodSchemaExpression(callee.object)) {
-            context.report({
-              node: callee.object,
-              messageId: "notZodSchema",
-            });
-            return;
-          }
-          // Check argument is arguments[index]
-          if (
-            defaultValue.arguments.length !== 1 ||
-            defaultValue.arguments[0].type !== "MemberExpression" ||
-            defaultValue.arguments[0].object.type !== "Identifier" ||
-            defaultValue.arguments[0].object.name !== "arguments" ||
-            defaultValue.arguments[0].property.type !== "Literal" ||
-            defaultValue.arguments[0].property.value !== index
-          ) {
-            context.report({
-              node: defaultValue,
-              messageId: "invalidZodParse",
-              data: { name: paramName, index: index.toString() },
-            });
-            return;
-          }
-        });
       },
     };
   },
