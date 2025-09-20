@@ -1,8 +1,9 @@
 module.exports = {
   parser: "@typescript-eslint/parser",
-  plugins: ["example"],
+  plugins: ["less-effect"],
   rules: {
-    "example/res-err-return-rule": "error",
+    "less-effect/res-err-return-rule": "error",
+    "less-effect/res-err-async-return-rule": "error",
     // No classes or OOP constructs
     // "functional/no-class": "error",
     // "functional/no-this-expression": "error",
