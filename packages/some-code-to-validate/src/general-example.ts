@@ -1,19 +1,23 @@
+import { z } from "zod";
+
 // Sync Function Examples
-function add(a, b) {
+
+function add(
+  a = z.number().parse(arguments[0]),
+  b = z.number().parse(arguments[1]),
+) {
   return [a + b, null];
 }
-function fetchData(id) {
+
+function fetchData(id = z.any().parse(arguments[0])) {
+  // Adjust schema as needed, e.g., z.string() or z.number()
   if (!id) {
     return [null, new Error("Invalid ID")];
   }
   const data = { id };
   return [data, null];
 }
-function compute() {
-  let res = Math.random() > 0.5 ? "success" : null;
-  let err = null;
-  return [res, err];
-}
+
 function multiPath() {
   if (Math.random() < 0.5) {
     return ["path1", null];
@@ -21,6 +25,7 @@ function multiPath() {
     return [null, new Error("path2")];
   }
 }
+
 function fromVariables() {
   const result = { key: "value" };
   const error = null;
@@ -28,10 +33,16 @@ function fromVariables() {
 }
 
 // Async Function Examples
-async function asyncAdd(a, b) {
+
+async function asyncAdd(
+  a = z.number().parse(arguments[0]),
+  b = z.number().parse(arguments[1]),
+) {
   return [a + b, null];
 }
-async function asyncFetchData(id) {
+
+async function asyncFetchData(id = z.any().parse(arguments[0])) {
+  // Adjust schema as needed
   if (!id) {
     return [null, new Error("Invalid ID")];
   }
@@ -40,6 +51,7 @@ async function asyncFetchData(id) {
   const data = { id };
   return [data, null];
 }
+
 async function asyncCompute() {
   // Simulate async operation
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -47,6 +59,7 @@ async function asyncCompute() {
   let err = null;
   return [res, err];
 }
+
 async function asyncMultiPath() {
   // Simulate async operation
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -56,6 +69,7 @@ async function asyncMultiPath() {
     return [null, new Error("path2")];
   }
 }
+
 async function asyncFromVariables() {
   // Simulate async operation
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -63,6 +77,7 @@ async function asyncFromVariables() {
   const error = null;
   return [result, error];
 }
+
 async function asyncWithCatch() {
   try {
     // Simulate async operation that might fail
