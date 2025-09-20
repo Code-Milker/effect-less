@@ -1,12 +1,12 @@
-// sync-go-style-return.ts
+// async-go-style-return.ts
 
 import { Rule } from "eslint";
 
-const syncRule: Rule.RuleModule = {
+const asyncRule: Rule.RuleModule = {
   meta: {
     docs: {
       description:
-        "Enforces Go-style returns for synchronous functions: [res, err] (or configurable) with error-like second element",
+        "Enforces Go-style returns for asynchronous functions: [res, err] (or configurable) with error-like second element",
     },
     schema: [
       {
@@ -15,6 +15,7 @@ const syncRule: Rule.RuleModule = {
           resName: { type: "string", default: "res" },
           errName: { type: "string", default: "err" },
           checkErrorLike: { type: "boolean", default: true },
+          enforcePromiseResolve: { type: "boolean", default: false },
           targetFunctionTypes: {
             type: "array",
             items: { type: "string" },
@@ -30,12 +31,13 @@ const syncRule: Rule.RuleModule = {
       resName = "res",
       errName = "err",
       checkErrorLike = true,
+      enforcePromiseResolve = false,
       targetFunctionTypes = ["FunctionDeclaration", "FunctionExpression"],
     } = context.options[0] || {};
     const functionStack: boolean[] = [];
     let hasReturn = false;
     const isTargetFunction = (node: any) =>
-      targetFunctionTypes.includes(node.type) && !node.async;
+      targetFunctionTypes.includes(node.type) && node.async;
     const checkReturnArgument = (arg: any, node: any) => {
       if (arg?.type !== "ArrayExpression" || arg.elements.length !== 2) {
         context.report({
@@ -99,10 +101,48 @@ const syncRule: Rule.RuleModule = {
           return;
         hasReturn = true;
         let arg = node.argument;
+        if (
+          arg?.type === "CallExpression" &&
+          arg.callee?.object?.name === "Promise" &&
+          arg.callee?.property?.name === "resolve"
+        ) {
+          if (arg.arguments.length !== 1) {
+            context.report({
+              node,
+              message: "Promise.resolve should have one argument.",
+            });
+            return;
+          }
+          arg = arg.arguments[0];
+        } else if (
+          arg?.type === "CallExpression" &&
+          arg.callee?.object?.name === "Promise" &&
+          arg.callee?.property?.name === "reject"
+        ) {
+          context.report({
+            node,
+            message:
+              "Async functions should resolve with [res, err], not reject.",
+          });
+          return;
+        } else if (enforcePromiseResolve) {
+          context.report({
+            node,
+            message:
+              "Async functions should return Promise.resolve([res, err]).",
+          });
+          return;
+        } else if (arg?.type !== "ArrayExpression") {
+          context.report({
+            node,
+            message: `Async functions should return [${resName}, ${errName}] or Promise.resolve([${resName}, ${errName}]).`,
+          });
+          return;
+        }
         checkReturnArgument(arg, node);
       },
     };
   },
 };
 
-export default syncRule;
+export default asyncRule;
